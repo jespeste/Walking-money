@@ -30,11 +30,11 @@
   const WORKDAYS = 260;  // ponytail: 52×5, ignores holidays/vacation
   const fmt = n => n.toLocaleString('nb-NO', { style: 'currency', currency: 'NOK' });
   const loopMs = parseFloat(getComputedStyle(walker).animationDuration) * 1000;
-  let perStep = 0, sum = 0;
+  let perStep = 0, sum = 0, day = 0;
 
   const tick = () => {
     sum += perStep;
-    total.textContent = `Tjent: ${fmt(sum)}`;
+    total.textContent = `Tjent: ${fmt(sum)} av ${fmt(day)} i dag`;
     const t = Object.assign(document.createElement('span'), { className: 'tick', textContent: `+${fmt(perStep)}` });
     t.onanimationend = () => t.remove();
     stage.append(t);
@@ -45,6 +45,7 @@
   f.onsubmit = e => {
     e.preventDefault();
     perStep = salary.value * (loopMs / 2) / (WORKDAYS * hours.value * 3600000);
+    day = salary.value / WORKDAYS;
     sum = 0;
     stage.hidden = false;
   };
