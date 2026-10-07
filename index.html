@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="nb">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pengegåtur</title>
+<style>
+  body { font-family: system-ui, sans-serif; text-align: center; padding: 2rem 1rem; }
+  #stage { position: relative; height: 240px; margin: 2rem auto; }
+  /* walk.png = 41 frames of 200px, 2 steps per loop. Duration is the speed knob (original gif: 0.82s). */
+  #walker { width: 200px; height: 200px; margin: 40px auto 0; background: url(walk.png);
+            animation: walk 1.64s steps(41) infinite; }
+  @keyframes walk { to { background-position: -8200px 0; } }
+  .tick { position: absolute; left: 50%; top: 0; color: green; font-weight: bold;
+          animation: up 1s ease-out forwards; pointer-events: none; }
+  @keyframes up { to { transform: translateY(-60px); opacity: 0; } }
+</style>
+
+<form id="f">
+  <label>Årslønn (kr) <input id="salary" type="number" min="1" required></label>
+  <label>Timer/dag <input id="hours" type="number" step="0.5" value="7.5" min="0.5" required></label>
+  <button>Gå</button>
+</form>
+
+<div id="stage" hidden>
+  <div id="walker" role="img" aria-label="Person som går"></div>
+</div>
+<p id="total"></p>
+
+<script>
+  const WORKDAYS = 260;  // ponytail: 52×5, ignores holidays/vacation
+  const fmt = n => n.toLocaleString('nb-NO', { style: 'currency', currency: 'NOK' });
+  const loopMs = parseFloat(getComputedStyle(walker).animationDuration) * 1000;
+  let perStep = 0, sum = 0;
+
+  const tick = () => {
+    sum += perStep;
+    total.textContent = `Tjent: ${fmt(sum)}`;
+    const t = Object.assign(document.createElement('span'), { className: 'tick', textContent: `+${fmt(perStep)}` });
+    t.onanimationend = () => t.remove();
+    stage.append(t);
+  };
+  // Re-synced to the animation every loop, so ticks can't drift from the feet.
+  walker.onanimationstart = walker.onanimationiteration = () => { tick(); setTimeout(tick, loopMs / 2); };
+
+  f.onsubmit = e => {
+    e.preventDefault();
+    perStep = salary.value * (loopMs / 2) / (WORKDAYS * hours.value * 3600000);
+    sum = 0;
+    stage.hidden = false;
+  };
+</script>
