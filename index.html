@@ -46,7 +46,9 @@
     e.preventDefault();
     perStep = salary.value * (loopMs / 2) / (WORKDAYS * hours.value * 3600000);
     day = salary.value / WORKDAYS;
-    sum = 0;
+    // ponytail: 07–15 workday, lunch spread evenly over the day instead of a fixed slot
+    const now = new Date(), h = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+    sum = day * Math.min(Math.max((h - 7) / 8, 0), 1);
     stage.hidden = false;
   };
 </script>
