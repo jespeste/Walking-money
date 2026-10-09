@@ -18,6 +18,7 @@
                        + min(200px, 25vw) * (1 - var(--s) - var(--depth) / 2));
             filter: invert(calc(.75 * (1 - var(--s)))); /* haze: black → grey with distance, stays opaque */ }
   @keyframes walk { to { background-position: -8200px 0; } }
+  #far { position: absolute; inset: 0; width: 100%; height: 100%; }
   .tick { position: absolute; left: 50%; top: 60px; /* rises 60px, so it stays inside #stage */ z-index: 100; color: green; font-weight: bold;
           animation: up 1s ease-out forwards; pointer-events: none; }
   @keyframes up { to { transform: translateY(-60px); opacity: 0; } }
@@ -31,6 +32,7 @@
 </form>
 
 <div id="stage" hidden>
+  <canvas id="far"></canvas>
   <div id="army" role="img"><div class="walker"></div></div>
 </div>
 <p id="total"></p>
@@ -39,9 +41,11 @@
   const WORKDAYS = 260;  // ponytail: 52×5, ignores holidays/vacation
   const fmt = n => n.toLocaleString('nb-NO', { style: 'currency', currency: 'NOK' });
   const PER_ROW = 20;  // people per rank before a new line starts
+  const MAX_DRAWN = 1000;  // walkers as DOM nodes; ranks behind them are painted on #far
+  const MAX_RANKS = 1650;  // ponytail: scale(1650)·200px ≈ 2px, further is sub-pixel. Up to 33k drawImage per frame step; raise MIN size if slow
   const scale = r => 1 / (1 + r * 0.06);  // perspective: rank r is 1+0.06r times further away; lower = slower shrink
   const loopMs = parseFloat(getComputedStyle(army.firstChild).animationDuration) * 1000;
-  let perStep = 0, sum = 0, day = 0;
+  let perStep = 0, sum = 0, day = 0, count = 0, ranks = 0;
 
   // Paid hours worked by clock hour h: start 07:00, unpaid lunch 11:00–11:30, so 7.5h ends 15:00.
   const clamp = (x, max) => Math.min(Math.max(x, 0), max);
@@ -59,24 +63,55 @@
 
   f.onsubmit = e => {
     e.preventDefault();
-    const n = +people.value, rows = Math.ceil(n / PER_ROW);
+    const n = +people.value, drawn = Math.min(n, MAX_DRAWN), rows = Math.min(Math.ceil(n / PER_ROW), MAX_RANKS);
     perStep = n * salary.value * (loopMs / 2) / (WORKDAYS * hours.value * 3600000);
     day = n * salary.value / WORKDAYS;
     // Fresh walkers all start together, so the army marches in lockstep.
-    army.replaceChildren(...Array.from({ length: n }, (_, i) => {
+    army.replaceChildren(...Array.from({ length: drawn }, (_, i) => {
       // Each rank is centred on its own head count, so the first person is in the middle and a
       // partial rank grows outwards until it's full.
-      const r = Math.floor(i / PER_ROW), inRank = Math.min(PER_ROW, n - r * PER_ROW), d = document.createElement('div');
+      const r = Math.floor(i / PER_ROW), inRank = Math.min(PER_ROW, drawn - r * PER_ROW), d = document.createElement('div');
       d.className = 'walker';
       d.style.cssText = `--s:${scale(r)};--x:${i % PER_ROW - (inRank - 1) / 2};z-index:${rows - r}`;
       return d;
     }));
     // Ticks follow the front walker's animation every loop, so they can't drift from the feet.
     army.firstChild.onanimationstart = army.firstChild.onanimationiteration = step;
+    count = n; ranks = rows;
     army.ariaLabel = `${n} ${n === 1 ? 'person' : 'personer'} som går`;
     stage.style.setProperty('--depth', 1 - scale(rows - 1));
     const now = new Date(), h = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
     sum = day * paid(h, +hours.value) / hours.value;
     stage.hidden = false;
   };
+
+  // Ranks past MAX_DRAWN, painted with the same geometry as the #army CSS, far to near.
+  const img = Object.assign(new Image(), { src: 'walk.png' }), SPRITE = 50, sheets = {};  // painted ranks are ≤50px tall
+  const sheet = grey => sheets[grey] ??= (() => {  // walk.png shrunk and recoloured to the haze grey, like invert() does to black
+    const c = new OffscreenCanvas(41 * SPRITE, SPRITE), x = c.getContext('2d');
+    x.drawImage(img, 0, 0, c.width, c.height);
+    x.globalCompositeOperation = 'source-in';
+    x.fillStyle = `hsl(0 0% ${grey}%)`;
+    x.fillRect(0, 0, c.width, c.height);
+    return c;
+  })();
+  let painted = '';
+  const paint = () => {
+    requestAnimationFrame(paint);
+    const a = army.firstChild.getAnimations()[0], W = stage.clientWidth, H = stage.clientHeight, dpr = devicePixelRatio;
+    const frame = count > MAX_DRAWN && a ? Math.floor(a.currentTime / loopMs * 41) % 41 : 0;  // in step with the front walker
+    const key = [frame, W, H, count, dpr].join();
+    if (key === painted || !img.complete) return;
+    painted = key;
+    far.width = W * dpr; far.height = H * dpr;  // also clears it
+    const ctx = far.getContext('2d'), gap = Math.min(45, innerWidth * .07), drift = Math.min(200, innerWidth * .25), depth = 1 - scale(ranks - 1);
+    ctx.scale(dpr, dpr);
+    for (let r = ranks - 1; r >= MAX_DRAWN / PER_ROW; r--) {
+      const s = scale(r), size = 200 * s, inRank = Math.min(PER_ROW, count - r * PER_ROW), sp = sheet(Math.round(75 * (1 - s)));
+      for (let i = 0; i < inRank; i++)
+        ctx.drawImage(sp, frame * SPRITE, 0, SPRITE, SPRITE,
+          W / 2 + (i - (inRank - 1) / 2) * gap * s + drift * (1 - s - depth / 2) - size / 2, H - 300 * (1 - s) - size, size, size);
+    }
+  };
+  paint();
 </script>
