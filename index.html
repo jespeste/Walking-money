@@ -5,32 +5,48 @@
 <title>Pengegåtur</title>
 <style>
   body { font-family: system-ui, sans-serif; text-align: center; padding: 2rem 1rem; }
-  #stage { position: relative; height: 240px; margin: 2rem auto; }
+  #stage { position: relative; height: calc(240px + 100px * var(--depth, 0)); /* back rank top = 300·depth + 200·s = 200 + 100·depth, +40px for ticks */ margin: 2rem auto; overflow-x: clip; }
   /* walk.png = 41 frames of 200px, 2 steps per loop. Duration is the speed knob (original gif: 0.82s). */
-  #walker { width: 200px; height: 200px; margin: 40px auto 0; background: url(walk.png);
-            animation: walk 1.64s steps(41) infinite; }
+  .walker { width: 200px; height: 200px; background: url(walk.png) repeat-x;
+            animation: walk 1.64s steps(41) infinite; clip-path: inset(1px 0 0 1px); /* stray pixel at 0,0 in every frame */ }
+  /* Army in perspective: --x = place in the rank, --s = rank's scale (1 = nearest, →0 at the horizon).
+     Far ranks shrink, rise towards a horizon 300px up, drift right towards the vanishing point and grey out.
+     --depth (on #stage) = how far the last rank got, used to size the stage and centre the block. */
+  #army .walker { position: absolute; transform-origin: bottom; scale: var(--s);
+            bottom: calc(300px * (1 - var(--s)));
+            left: calc(50% - 100px + var(--x) * min(45px, 7vw) * var(--s)
+                       + min(200px, 25vw) * (1 - var(--s) - var(--depth) / 2));
+            filter: invert(calc(.75 * (1 - var(--s)))); /* haze: black → grey with distance, stays opaque */ }
   @keyframes walk { to { background-position: -8200px 0; } }
-  .tick { position: absolute; left: 50%; top: 0; color: green; font-weight: bold;
+  .tick { position: absolute; left: 50%; top: 0; z-index: 100; color: green; font-weight: bold;
           animation: up 1s ease-out forwards; pointer-events: none; }
   @keyframes up { to { transform: translateY(-60px); opacity: 0; } }
 </style>
 
 <form id="f">
   <label>Årslønn (kr) <input id="salary" type="number" min="1" required></label>
+  <label>Antall folk <input id="people" type="number" value="1" min="1" required></label>
   <label>Timer/dag <input id="hours" type="number" step="0.5" value="7.5" min="0.5" required></label>
   <button>Gå</button>
 </form>
 
 <div id="stage" hidden>
-  <div id="walker" role="img" aria-label="Person som går"></div>
+  <div id="army" role="img"><div class="walker"></div></div>
 </div>
 <p id="total"></p>
 
 <script>
   const WORKDAYS = 260;  // ponytail: 52×5, ignores holidays/vacation
   const fmt = n => n.toLocaleString('nb-NO', { style: 'currency', currency: 'NOK' });
-  const loopMs = parseFloat(getComputedStyle(walker).animationDuration) * 1000;
+  const PER_ROW = 20;  // people per rank before a new line starts
+  const scale = r => 1 / (1 + r * 0.06);  // perspective: rank r is 1+0.06r times further away; lower = slower shrink
+  const loopMs = parseFloat(getComputedStyle(army.firstChild).animationDuration) * 1000;
   let perStep = 0, sum = 0, day = 0;
+
+  // Paid hours worked by clock hour h: start 07:00, unpaid lunch 11:00–11:30, so 7.5h ends 15:00.
+  const clamp = (x, max) => Math.min(Math.max(x, 0), max);
+  const paid = (h, hrs) => clamp(h - 7, 4) + clamp(h - 11.5, hrs - 4);
+  console.assert(paid(6, 7.5) === 0 && paid(11.25, 7.5) === 4 && paid(15, 7.5) === 7.5 && paid(20, 7.5) === 7.5);
 
   const tick = () => {
     sum += perStep;
@@ -39,16 +55,26 @@
     t.onanimationend = () => t.remove();
     stage.append(t);
   };
-  // Re-synced to the animation every loop, so ticks can't drift from the feet.
-  walker.onanimationstart = walker.onanimationiteration = () => { tick(); setTimeout(tick, loopMs / 2); };
+  const step = () => { tick(); setTimeout(tick, loopMs / 2); };
 
   f.onsubmit = e => {
     e.preventDefault();
-    perStep = salary.value * (loopMs / 2) / (WORKDAYS * hours.value * 3600000);
-    day = salary.value / WORKDAYS;
-    // ponytail: 07–15 workday, lunch spread evenly over the day instead of a fixed slot
+    const n = +people.value, rows = Math.ceil(n / PER_ROW);
+    perStep = n * salary.value * (loopMs / 2) / (WORKDAYS * hours.value * 3600000);
+    day = n * salary.value / WORKDAYS;
+    // Fresh walkers all start together, so the army marches in lockstep.
+    army.replaceChildren(...Array.from({ length: n }, (_, i) => {
+      const r = Math.floor(i / PER_ROW), d = document.createElement('div');
+      d.className = 'walker';
+      d.style.cssText = `--s:${scale(r)};--x:${i % PER_ROW - (PER_ROW - 1) / 2};z-index:${rows - r}`;
+      return d;
+    }));
+    // Ticks follow the front walker's animation every loop, so they can't drift from the feet.
+    army.firstChild.onanimationstart = army.firstChild.onanimationiteration = step;
+    army.ariaLabel = `${n} ${n === 1 ? 'person' : 'personer'} som går`;
+    stage.style.setProperty('--depth', 1 - scale(rows - 1));
     const now = new Date(), h = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
-    sum = day * Math.min(Math.max((h - 7) / 8, 0), 1);
+    sum = day * paid(h, +hours.value) / hours.value;
     stage.hidden = false;
   };
 </script>
