@@ -64,9 +64,11 @@
     day = n * salary.value / WORKDAYS;
     // Fresh walkers all start together, so the army marches in lockstep.
     army.replaceChildren(...Array.from({ length: n }, (_, i) => {
-      const r = Math.floor(i / PER_ROW), d = document.createElement('div');
+      // Each rank is centred on its own head count, so the first person is in the middle and a
+      // partial rank grows outwards until it's full.
+      const r = Math.floor(i / PER_ROW), inRank = Math.min(PER_ROW, n - r * PER_ROW), d = document.createElement('div');
       d.className = 'walker';
-      d.style.cssText = `--s:${scale(r)};--x:${i % PER_ROW - (PER_ROW - 1) / 2};z-index:${rows - r}`;
+      d.style.cssText = `--s:${scale(r)};--x:${i % PER_ROW - (inRank - 1) / 2};z-index:${rows - r}`;
       return d;
     }));
     // Ticks follow the front walker's animation every loop, so they can't drift from the feet.
