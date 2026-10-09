@@ -5,7 +5,7 @@
 <title>Pengegåtur</title>
 <style>
   body { font-family: system-ui, sans-serif; text-align: center; padding: 2rem 1rem; }
-  #stage { position: relative; height: calc(240px + 100px * var(--depth, 0)); /* back rank top = 300·depth + 200·s = 200 + 100·depth, +40px for ticks */ margin: 2rem auto; overflow-x: clip; }
+  #stage { position: relative; height: calc(300px + 100px * var(--depth, 0)); /* back rank top = 300·depth + 200·s = 200 + 100·depth, +100px for ticks */ margin: 2rem auto; overflow-x: clip; }
   /* walk.png = 41 frames of 200px, 2 steps per loop. Duration is the speed knob (original gif: 0.82s). */
   .walker { width: 200px; height: 200px; background: url(walk.png) repeat-x;
             animation: walk 1.64s steps(41) infinite; clip-path: inset(1px 0 0 1px); /* stray pixel at 0,0 in every frame */ }
@@ -18,7 +18,7 @@
                        + min(200px, 25vw) * (1 - var(--s) - var(--depth) / 2));
             filter: invert(calc(.75 * (1 - var(--s)))); /* haze: black → grey with distance, stays opaque */ }
   @keyframes walk { to { background-position: -8200px 0; } }
-  .tick { position: absolute; left: 50%; top: 0; z-index: 100; color: green; font-weight: bold;
+  .tick { position: absolute; left: 50%; top: 60px; /* rises 60px, so it stays inside #stage */ z-index: 100; color: green; font-weight: bold;
           animation: up 1s ease-out forwards; pointer-events: none; }
   @keyframes up { to { transform: translateY(-60px); opacity: 0; } }
 </style>
