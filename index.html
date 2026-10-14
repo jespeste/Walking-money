@@ -28,6 +28,7 @@
   <label>Årslønn (kr) <input id="salary" type="number" min="1" required></label>
   <label>Antall folk <input id="people" type="number" value="1" min="1" required></label>
   <label>Timer/dag <input id="hours" type="number" step="0.5" value="7.5" min="0.5" required></label>
+  <label>Skatt (%) <input id="tax" type="number" step="0.1" value="0" min="0" max="100" required></label>
   <button>Gå</button>
 </form>
 
@@ -47,14 +48,14 @@
   const loopMs = parseFloat(getComputedStyle(army.firstChild).animationDuration) * 1000;
   let perStep = 0, sum = 0, day = 0, count = 0, ranks = 0;
 
-  // Paid hours worked by clock hour h: start 07:00, unpaid lunch 11:00–11:30, so 7.5h ends 15:00.
+  // Paid hours by clock hour h: start 07:00, unpaid lunch 11:00–11:30, then keeps counting past the end of the workday.
   const clamp = (x, max) => Math.min(Math.max(x, 0), max);
-  const paid = (h, hrs) => clamp(h - 7, 4) + clamp(h - 11.5, hrs - 4);
-  console.assert(paid(6, 7.5) === 0 && paid(11.25, 7.5) === 4 && paid(15, 7.5) === 7.5 && paid(20, 7.5) === 7.5);
+  const paid = h => clamp(h - 7, 4) + Math.max(h - 11.5, 0);
+  console.assert(paid(6) === 0 && paid(11.25) === 4 && paid(15) === 7.5 && paid(20) === 12.5);
 
   const tick = () => {
     sum += perStep;
-    total.textContent = `Tjent: ${fmt(sum)} av ${fmt(day)} i dag`;
+    total.textContent = `Tjent: ${fmt(sum)} før skatt, ${fmt(sum * (1 - tax.value / 100))} etter skatt (dagslønn ${fmt(day)})`;
     const t = Object.assign(document.createElement('span'), { className: 'tick', textContent: `+${fmt(perStep)}` });
     t.onanimationend = () => t.remove();
     stage.append(t);
@@ -81,7 +82,7 @@
     army.ariaLabel = `${n} ${n === 1 ? 'person' : 'personer'} som går`;
     stage.style.setProperty('--depth', 1 - scale(rows - 1));
     const now = new Date(), h = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
-    sum = day * paid(h, +hours.value) / hours.value;
+    sum = day * paid(h) / hours.value;
     stage.hidden = false;
   };
 
