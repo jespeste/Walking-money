@@ -4,7 +4,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pengegåtur</title>
 <style>
-  body { font-family: system-ui, sans-serif; text-align: center; padding: 2rem 1rem; }
+  body { font-family: system-ui, sans-serif; text-align: center; padding: 2rem 1rem; margin: 0 auto; max-width: 900px; color: #222; }
+  form { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .75rem; text-align: left; }
+  label { display: flex; flex-direction: column; gap: .25rem; font-size: .85rem; color: #555; }
+  input, button { font: inherit; font-size: 1rem; padding: .5rem .6rem; border: 1px solid #ccc; border-radius: 8px; width: 100%; box-sizing: border-box; }
+  button { grid-column: 1 / -1; background: #222; color: #fff; border: 0; font-weight: 600; cursor: pointer; }
+  #total { white-space: pre-line; font-variant-numeric: tabular-nums; color: #555; }
+  #total::first-line { font-size: 1.5rem; font-weight: bold; color: #222; }
+  #things { font-weight: bold; margin-bottom: .5rem; }
   #stage { position: relative; height: calc(300px + 100px * var(--depth, 0)); /* back rank top = 300·depth + 200·s = 200 + 100·depth, +100px for ticks */ margin: 2rem auto; overflow-x: clip; }
   /* walk.png = 41 frames of 200px, 2 steps per loop. Duration is the speed knob (original gif: 0.82s). */
   .walker { width: 200px; height: 200px; background: url(walk.png) repeat-x;
@@ -21,6 +28,10 @@
   #far { position: absolute; inset: 0; width: 100%; height: 100%; }
   .tick { position: absolute; left: 50%; top: 60px; /* rises 60px, so it stays inside #stage */ z-index: 100; color: green; font-weight: bold;
           animation: up 1s ease-out forwards; pointer-events: none; }
+  /* Battery that charges up towards the price of one thing. */
+  #battery { position: relative; width: 120px; height: 50px; margin: 0 auto; padding: 3px; border: 3px solid; border-radius: 8px; box-sizing: border-box; }
+  #battery::after { content: ''; position: absolute; right: -9px; top: 50%; translate: 0 -50%; width: 6px; height: 18px; background: currentColor; border-radius: 0 3px 3px 0; }
+  #fill { height: 100%; width: var(--fill, 0%); background: #3c3; border-radius: 3px; transition: width .4s; }
   @keyframes up { to { transform: translateY(-60px); opacity: 0; } }
 </style>
 
@@ -29,6 +40,8 @@
   <label>Antall folk <input id="people" type="number" value="1" min="1" required></label>
   <label>Timer/dag <input id="hours" type="number" step="0.5" value="7.5" min="0.5" required></label>
   <label>Skatt (%) <input id="tax" type="number" step="0.1" value="0" min="0" max="100" required></label>
+  <label>Ting <input id="thing" placeholder="Øl på Los Tacos"></label>
+  <label>Pris (kr) <input id="price" type="number" step="any" min="1"></label>
   <button>Gå</button>
 </form>
 
@@ -37,6 +50,8 @@
   <div id="army" role="img"><div class="walker"></div></div>
 </div>
 <p id="total"></p>
+<p id="things"></p>
+<div id="battery" hidden><div id="fill"></div></div>
 
 <script>
   const WORKDAYS = 260;  // ponytail: 52×5, ignores holidays/vacation
@@ -55,7 +70,11 @@
 
   const tick = () => {
     sum += perStep;
-    total.textContent = `Tjent: ${fmt(sum)} før skatt, ${fmt(sum * (1 - tax.value / 100))} etter skatt (dagslønn ${fmt(day)})`;
+    const net = sum * (1 - tax.value / 100), got = net / price.value;
+    total.textContent = `Tjent: ${fmt(sum)}\n${fmt(net)} etter skatt · dagslønn ${fmt(day)}`;
+    battery.hidden = !(price.value > 0);
+    things.textContent = battery.hidden ? '' : `${Math.floor(got)}× ${thing.value || 'ting'}`;
+    fill.style.setProperty('--fill', `${got % 1 * 100}%`);
     const t = Object.assign(document.createElement('span'), { className: 'tick', textContent: `+${fmt(perStep)}` });
     t.onanimationend = () => t.remove();
     stage.append(t);
